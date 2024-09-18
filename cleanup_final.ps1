@@ -1,20 +1,42 @@
 <#
 .SYNOPSIS
-    This script performs cleanup activity for Ncover.
+    A PowerShell script to monitor directory size, stop services, clean up files, and restart services when certain thresholds are exceeded.
 
 .DESCRIPTION
-    This script takes input from user for the "datastoreLocation", "directoryThresholdGB" & "logFile" path.
-    Then checks if the "datastoreLocation" has crossed the "directoryThresholdGB" value. 
-    If yes,
-        then stop the service, perform cleanup activity, and then start the service. All the log
-        activity is tracked in the "logFile" path provided.
-    If no,
-        then just update the logfile with message "No cleanup performed." 
+    This script is designed to automate the cleanup of a specific directory (`datastoreLocation`) that may accumulate large amounts of data over time. 
+    It takes input from the user for the directory location, a threshold size in GB, and a log file location. 
+    When the directory exceeds the threshold size, it will:
+    
+    - Stop the specified service (`ncover` by default, or any other service).
+    - Clean up files from subdirectories based on the specified conditions.
+    - Log all activities, including service stops, cleanup details, and errors.
+    - Restart the service after the cleanup is complete.
+
+    This helps in maintaining optimal disk usage and ensuring that the service associated with the data directory runs efficiently.
+
+.AUTHOR
+    Your Name
+    Contact: your.email@domain.com
+
+.PARAMETER datastoreLocation
+    The path to the datastore location to monitor. Example: `C:\ProgramData\ncoverdata`.
+
+.PARAMETER directoryThresholdGB
+    The threshold size in gigabytes. If the directory exceeds this size, cleanup will be triggered.
+
+.PARAMETER logFile
+    The path where the log file will be created. This file will store all the activity logs of the script.
 
 .EXAMPLE
-    .\\cleanup.ps1
+    .\cleanup.ps1
+    
+    This will run the script and prompt the user for the directory threshold in GB. If the directory size exceeds the threshold, 
+    it will stop the service, clean up files, and restart the service, logging all actions in the provided log file.
 
-    Runs the script.
+.EXAMPLE
+    .\cleanup.ps1 -datastoreLocation "C:\ProgramData\ncoverdata" -directoryThresholdGB 1.5 -logFile "C:\Users\youruser\cleanup_log.txt"
+    
+    This will run the script with predefined values for the datastore location, directory threshold, and log file path, without further prompts.
 #>
 
 # Define the service name
