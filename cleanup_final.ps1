@@ -70,7 +70,7 @@ if ($confirmation -eq 'y') {
                 }
             }
         } catch {
-            Log-Status -message "Error retrieving directory size for $path: $_"
+            Log-Status -message "Error retrieving directory size for $path : $_"
             throw $_  # Rethrow error if you want to halt execution
         }
         return $size
@@ -100,7 +100,7 @@ if ($confirmation -eq 'y') {
             Add-Content -Path $logFile -Value ("[" + (Get-Date).ToString("yyyy-MM-dd HH:mm:ss") + "] " + $message)
         } catch {
             Write-Host "Error logging to file: $logFile. Message: $_"
-            throw $_  # Rethrow error if you want to halt execution
+            exit 1
         }
     }
 
@@ -109,17 +109,17 @@ if ($confirmation -eq 'y') {
         if (Test-Path -Path $datastoreLocation) {
             # Get the size of the datastore directory
             $datastoreSize = Get-DirectorySize -path $datastoreLocation
-
             $actualSize = Get-HRSize -dSize $datastoreSize
             Log-Status -message "Datastore size before cleanup: $actualSize"
 
             # Check if datastore size crossed the threshold
             if ($datastoreSize -gt $directoryThresholdBytes) {
+                Write-Host "Current size: $actualSize"
                 Write-Host "Size has crossed threshold limit. Starting cleanup activity..."
                 Log-Status -message "Size has crossed the threshold limit of $directoryThresholdGB GB"
                 Log-Status -message "Starting cleanup activity..."
 
-                # Stop the service and log
+                # Stop the service
                 try {
                     $service = Get-Service -Name $serviceName -ErrorAction Stop
                     if ($service.Status -eq 'Running') {
@@ -131,29 +131,65 @@ if ($confirmation -eq 'y') {
                         Log-Status -message "$serviceName service is not running."
                     }
                 } catch {
-                    Log-Status -message "Error stopping service $serviceName: $_"
+                    Log-Status -message "Error stopping service $serviceName : $_"
+                    exit 1
                 }
 
-                # Perform the cleanup (coverage files, logs, etc.)
+                # Cleanup Coverage Files
                 try {
-                    # Example: Clean up coverage files
                     $coverageFilesDir = Join-Path -Path $datastoreLocation -ChildPath "Coverage Files"
                     if (Test-Path -Path $coverageFilesDir) {
                         Log-Status -message "Cleaning up 'Coverage Files' directory."
                         Remove-Item -Path $coverageFilesDir\* -Recurse -Force -ErrorAction Stop
                     }
                 } catch {
-                    Log-Status -message "Error during cleanup: $_"
+                    Log-Status -message "Error during cleanup of Coverage Files: $_"
                 }
+
+                # Cleanup Logs sub-directories
+                try {
+                    $logsDirs = @("NcoverApiClient", "Profiling", "Service")
+                    foreach ($logsDir in $logsDirs) {
+                        $fullLogsDir = Join-Path -Path $datastoreLocation -ChildPath ("Logs\" + $logsDir)
+                        if (Test-Path -Path $fullLogsDir) {
+                            Log-Status -message "Cleaning up logs in '$logsDir'..."
+                            Remove-Item -Path $fullLogsDir\* -Recurse -Force
+                        } else {
+                            Log-Status -message "'$logsDir' logs directory does not exist."
+                        }
+                    }
+                } catch {
+                    Log-Status -message "Error during cleanup of Logs sub-directories: $_"
+                }
+
+                # Cleanup NCover directory
+                try {
+                     $ncoverDir = Join-Path -Path $datastoreLocation -ChildPath "NCover"
+                     $projectFolder = "Projects"
+                     if (Test-Path -Path $ncoverDir) {
+                         Set-Location -Path $ncoverDir
+                         Log-Status -message "Cleaning up items in 'NCover', excluding 'Projects'."
+                         $items = Get-ChildItem -Exclude $projectFolder
+                             if ($items.Count -gt 0) {
+                                 Remove-Item -Path $items.FullName -Recurse -Force
+                             } else {
+                                 Log-Status -message "No items to clean up in 'NCover', excluding 'Projects'."
+                             }
+                     } else {
+                         Log-Status -message "'NCover' directory does not exist."
+                   } 
+                } catch {
+                    Log-Status -message "Error during cleanup of NCover directory: $_"
+                }
+
 
                 # Log the datastore size after cleanup
                 $datastoreSizeAfterCleanup = Get-DirectorySize -path $datastoreLocation
                 $dSizeAC = Get-HRSize -dSize $datastoreSizeAfterCleanup
                 Log-Status -message "Datastore size after cleanup: $dSizeAC"
                 Log-Status -message "Completed cleanup activity."
-                Write-Host "Cleanup activity completed."
 
-                # Restart the service
+                # Start the service
                 try {
                     $service = Get-Service -Name $serviceName -ErrorAction Stop
                     if ($service.Status -ne 'Running') {
@@ -161,11 +197,12 @@ if ($confirmation -eq 'y') {
                         Start-Service -Name $serviceName -ErrorAction Stop
                         $service.WaitForStatus('Running', '00:00:30')
                         Log-Status -message "$serviceName service started."
+                        Write-Host "################### Cleanup Completed. Current size: $dSizeAC ###################" -ForegroundColor Green
                     } else {
                         Log-Status -message "$serviceName service is already running."
                     }
                 } catch {
-                    Log-Status -message "Error starting service $serviceName: $_"
+                    Log-Status -message "Error starting service $serviceName : $_"
                 }
             } else {
                 Write-Host "Cleanup not needed as current size is $actualSize."
@@ -180,5 +217,5 @@ if ($confirmation -eq 'y') {
         Write-Host "An error occurred: $_" -ForegroundColor Red
     }
 } else {
-    Write-Host "Cleanup activity cancelled."
+    Write-Host "Cleanup activity cancelled." -ForegroundColor Red
 }
