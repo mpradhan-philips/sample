@@ -1,0 +1,51 @@
+trigger:
+  branches:
+    include:
+      - main  # Define the branch you want to trigger the pipeline on, e.g., main
+
+pool:
+  vmImage: 'windows-latest'  # Choose an appropriate agent pool
+
+variables:
+  # Define variables
+  datastoreLocation: "C:\\ProgramData\\ncoverdata"
+  directoryThresholdGB: "1.5"
+  logFile: "$(Build.ArtifactStagingDirectory)\\cleanup_log.txt"
+  serviceName: "ncover"  # Update the service name as necessary
+
+stages:
+  - stage: CleanupStage
+    displayName: "Directory Cleanup and Service Restart"
+    jobs:
+      - job: DirectoryCleanupJob
+        displayName: "Run PowerShell Cleanup Script"
+        steps:
+          - checkout: self  # Checkout the repository code
+
+          # Step 1: Display the current environment (optional)
+          - task: PowerShell@2
+            displayName: "Display Environment Info"
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host "User: $(Build.RequestedFor)"
+                Write-Host "Machine Name: $(Agent.MachineName)"
+                Write-Host "Operating System: $(Agent.OS)"
+
+          # Step 2: Run the PowerShell cleanup script
+          - task: PowerShell@2
+            displayName: "Run Directory Cleanup Script"
+            inputs:
+              targetType: 'filePath'  # Run the script stored in the repo
+              filePath: 'scripts/cleanup.ps1'  # Path to your script in the repo
+              arguments: '-datastoreLocation "$(datastoreLocation)" -directoryThresholdGB $(directoryThresholdGB) -logFile "$(logFile)" -serviceName "$(serviceName)"'
+              pwsh: true  # Use PowerShell Core
+
+          # Step 3: Publish the log file as a build artifact for later review
+          - task: PublishBuildArtifacts@1
+            displayName: "Publish Cleanup Logs"
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'  # Folder containing the log file
+              ArtifactName: 'cleanup_logs'  # Name of the artifact
+              publishLocation: 'Container'
+
