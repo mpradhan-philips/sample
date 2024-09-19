@@ -3,16 +3,20 @@
     A PowerShell script to monitor directory size, stop services, clean up files, and restart services when certain thresholds are exceeded.
 
 .DESCRIPTION
-    This script automates the cleanup of a specific directory when its size exceeds a threshold. It performs the following actions:
-    - Stops a service (ncover by default).
-    - Cleans up specific files and directories.
-    - Restarts the service.
-    - Logs all actions to a log file.
-    The script supports error handling to ensure smooth execution even in case of failures.
+    This script is designed to automate the cleanup of a specific directory (`datastoreLocation`) that may accumulate large amounts of data over time. 
+    It takes input from the user for the directory location, a threshold size in GB, and a log file location. 
+    When the directory exceeds the threshold size, it will:
+    
+    - Stop the specified service (`ncover`).
+    - Clean up files from subdirectories based on the specified conditions.
+    - Log all activities, including service stops, cleanup details, and errors.
+    - Restart the service after the cleanup is complete.
+
+    This helps in maintaining optimal disk usage and ensuring that the service associated with the data directory runs efficiently.
 
 .AUTHOR
-    Your Name
-    Contact: your.email@domain.com
+    Mrutyunjaya Pradhan
+    Contact: mrutyunjaya.pradhan@philips.com
 
 .PARAMETER datastoreLocation
     The path to the datastore location to monitor. Example: `C:\ProgramData\ncoverdata`.
@@ -21,18 +25,31 @@
     The threshold size in gigabytes. If the directory exceeds this size, cleanup will be triggered.
 
 .PARAMETER logFile
-    The path where the log file will be created.
+    The path where the log file will be created. This file will store all the activity logs of the script.
 
 .EXAMPLE
     .\cleanup.ps1
+    
+    This will run the script and prompt the user for the directory threshold in GB. If the directory size exceeds the threshold, 
+    it will stop the service, clean up files, and restart the service, logging all actions in the provided log file.
+
+.EXAMPLE
+    .\cleanup.ps1 -datastoreLocation "C:\ProgramData\ncoverdata" -directoryThresholdGB 1.5 -logFile "C:\Users\youruser\cleanup_log.txt"
+    
+    This will run the script with predefined values for the datastore location, directory threshold, and log file path, without further prompts.
 #>
 
 # Define the service name
-$serviceName = "ncover"  # Replace with the actual service name if different
+$serviceName = "ncover"
 
-# Prompt for the datastore location, directory threshold, and log file path. Currently hardcoded the values.
+# Prompt for the datastore location, directory threshold, and log file location.
 $datastoreLocation = "C:\ProgramData\ncoverdata"
+#$datastoreLocation = Read-Host "Enter the datastore location (e.g., C:\ProgramData\ncoverdata)"
+
 $directoryThresholdGB = [decimal](Read-Host "Enter the directory threshold in GB (e.g., 1.5)")
+#$directoryThresholdGB = 1.5
+
+#$logFile = Read-Host "Enter the logfile location (e.g., C:\Users\ing07471\cleanup_log.txt)"
 $logFile = "C:\Users\ing07471\cleanup_log.txt"
 
 # Validate if directory threshold is a valid number
@@ -41,13 +58,10 @@ if (-not [decimal]::TryParse($directoryThresholdGB, [ref]$null)) {
     exit 1
 }
 
-# Start transcript for logging
-Start-Transcript -Path $logFile -Append
-
-# Display all the inputs before proceeding
-$separator = "+" + ("-" * 30) + "+" + ("-" * 40) + "+"
-$header = "| {0,-30} | {1,-40} |"
-$row = "| {0,-30} | {1,-40} |"
+# Display all the inputs before proceeding in table format
+$separator = "+" + ("-" * 32) + "+" + ("-" * 50) + "+"
+$header = "| {0,-30} | {1,-40} "
+$row = "| {0,-30} | {1,-40} "
 
 Write-Host $separator -ForegroundColor Cyan
 Write-Host ($header -f "Input Parameter", "Value") -ForegroundColor Magenta
@@ -61,7 +75,6 @@ Write-Host $separator -ForegroundColor Cyan
 $confirmation = Read-Host "Are you sure you want to proceed (y/n):"
 if ($confirmation -ne 'y') {
     Write-Host "Cleanup activity cancelled." -ForegroundColor Red
-    Stop-Transcript
     exit 0
 }
 
@@ -83,7 +96,7 @@ function Get-DirectorySize {
             throw "Path $path not found."
         }
     } catch {
-        Log-Status -message "Error retrieving directory size for $path: $($Error[0].Exception.Message)"
+        Log-Status -message "Error retrieving directory size for $path : $($Error[0].Exception.Message)"
         throw $_
     }
 }
@@ -146,16 +159,16 @@ try {
                     Log-Status -message "$serviceName service is not running."
                 }
             } catch {
-                Log-Status -message "Error stopping service $serviceName: $($Error[0].Exception.Message)"
+                Log-Status -message "Error stopping service $serviceName : $($Error[0].Exception.Message)"
                 exit 1
             }
 
-            # Cleanup Coverage Files (with -WhatIf for safety)
+            # Cleanup Coverage Files
             try {
                 $coverageFilesDir = Join-Path -Path $datastoreLocation -ChildPath "Coverage Files"
                 if (Test-Path -Path $coverageFilesDir) {
                     Log-Status -message "Cleaning up 'Coverage Files' directory."
-                    Remove-Item -Path $coverageFilesDir\* -Recurse -Force -ErrorAction Stop -WhatIf  # Remove -WhatIf after testing
+                    Remove-Item -Path $coverageFilesDir\* -Recurse -Force -ErrorAction Stop
                 }
             } catch {
                 Log-Status -message "Error during cleanup of Coverage Files: $($Error[0].Exception.Message)"
@@ -168,7 +181,7 @@ try {
                     $fullLogsDir = Join-Path -Path $datastoreLocation -ChildPath ("Logs\" + $logsDir)
                     if (Test-Path -Path $fullLogsDir) {
                         Log-Status -message "Cleaning up logs in '$logsDir'..."
-                        Remove-Item -Path $fullLogsDir\* -Recurse -Force -WhatIf  # Remove -WhatIf after testing
+                        Remove-Item -Path $fullLogsDir\* -Recurse -Forcev
                     } else {
                         Log-Status -message "'$logsDir' logs directory does not exist."
                     }
@@ -186,7 +199,7 @@ try {
                     Log-Status -message "Cleaning up items in 'NCover', excluding 'Projects'."
                     $items = Get-ChildItem -Exclude $projectFolder
                     if ($items.Count -gt 0) {
-                        Remove-Item -Path $items.FullName -Recurse -Force -WhatIf  # Remove -WhatIf after testing
+                        Remove-Item -Path $items.FullName -Recurse -Force
                     } else {
                         Log-Status -message "No items to clean up in 'NCover', excluding 'Projects'."
                     }
@@ -211,24 +224,22 @@ try {
                     Start-Service -Name $serviceName -ErrorAction Stop
                     $service.WaitForStatus('Running', '00:00:30')
                     Log-Status -message "$serviceName service started."
+                    Write-Host "################### Cleanup Completed. Current size: $dSizeAC ###################" -ForegroundColor Green
                 }
             } catch {
-                Log-Status -message "Error starting service $serviceName: $($Error[0].Exception.Message)"
+                Log-Status -message "Error starting service $serviceName : $($Error[0].Exception.Message)"
             }
 
         } else {
-            Log-Status -message "Datastore size within limit: $actualSize"
-            Write-Host "Datastore size is within the defined limit."
+            Log-Status -message "Datastore size ($actualSize) does not exceed the threshold. No cleanup performed."
+            Write-Host "Cleanup not needed. Current size: $actualSize." 
         }
     } else {
         Log-Status -message "Datastore location does not exist."
-        Write-Host "Datastore location not found." -ForegroundColor Red
     }
 } catch {
     Log-Status -message "Error during the cleanup process: $($Error[0].Exception.Message)"
 }
 
-# Stop transcript for logging
-Stop-Transcript
 
-Write-Host "Cleanup process completed."
+Write-Host "################### Activity completed. ###################" -ForegroundColor Green
