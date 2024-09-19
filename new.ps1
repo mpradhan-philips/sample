@@ -16,8 +16,6 @@
     This helps in maintaining optimal disk usage and ensuring that the service associated with the data directory runs efficiently.
 
 .AUTHOR
-    Mrutyunjaya Pradhan
-    Contact: mrutyunjaya.pradhan@philips.com
 
 .PARAMETER datastoreLocation
     The path to the datastore location to monitor. Example: `C:\ProgramData\ncoverdata`.
