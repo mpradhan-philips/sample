@@ -1,8 +1,65 @@
-1) Export nCover report automatically.
-2) Check if report file was successfully exported and continue on error (the pipeline status should have a warning alert).
-3) TICS is triggered post the nCover report copy.
-4) Make arguments dynamic instead of hardcoding
-5) this powershell script will be part of azure pipeline, so we can use secrets to store passwords and azure repo names for project name, file name, execution name 
-Commands 
-ncover connect --server=http://ingpic1:11235/ --username=admin --password=#welcome123
-ncover export --project "CT_RotorControlDS" --execution"CT_RotorControlDS_Nightly_20241008.2 (Consolidated)" --file="D:\Softwares\CT_RotorControlDS.xml" --format=v3xml --include-source
+# Define parameters directly in the script
+$ServerUrl = "http://incte:123/"        # NCover server URL
+$Username = "admin"                      # NCover username
+$Password = "your_password"              # NCover password (consider storing securely in Azure DevOps)
+$RepoName = "dynamic reponame"          # Repository name
+$ExecutionType = "nightly"               # Execution type
+$ExportFile = "ds.xml"                   # Export file name
+$SharedPath = "\\Shared\Network\Path"    # Shared path for the exported report
+
+# Path to the NCover executable
+$NCoverExecutable = "C:\Path\To\NCover\NCover.Console.exe"
+
+function Generate-NCoverReport {
+    param (
+        [string]$ServerUrl,
+        [string]$Username,
+        [string]$Password,
+        [string]$RepoName,
+        [string]$ExecutionType,
+        [string]$ExportFile,
+        [string]$SharedPath
+    )
+
+    # Connect to NCover server
+    try {
+        Write-Host "Connecting to NCover server..."
+        & $NCoverExecutable connect --server=$ServerUrl --username=$Username --password=$Password
+        
+        if ($?) {
+            Write-Host "Connected to NCover server successfully."
+        } else {
+            Write-Host "Failed to connect to NCover server."
+            exit 1
+        }
+
+        # Export the report
+        Write-Host "Exporting report..."
+        & $NCoverExecutable export --project $RepoName --execution $ExecutionType --file=$ExportFile --include-source
+        
+        # Check if the report file exists
+        if (Test-Path -Path $ExportFile) {
+            Write-Host "Report found, copying to shared path..."
+            $DestinationPath = Join-Path -Path $SharedPath -ChildPath $ExportFile
+            
+            # Copy the report to the shared path
+            Copy-Item -Path $ExportFile -Destination $DestinationPath -Force -ErrorAction SilentlyContinue
+            if ($?) {
+                Write-Host "Report successfully copied to shared path."
+            } else {
+                Write-Host "Failed to copy report to shared path."
+            }
+        } else {
+            Write-Host "Report not found at $ExportFile."
+            exit 1
+        }
+    } catch {
+        Write-Host "An error occurred: $_"
+        exit 1
+    }
+}
+
+# Call the function to generate the NCover report
+Generate-NCoverReport -ServerUrl $ServerUrl -Username $Username -Password $Password -RepoName $RepoName -ExecutionType $ExecutionType -ExportFile $ExportFile -SharedPath $SharedPath
+
+Write-Host "Script completed."
