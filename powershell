@@ -1,26 +1,16 @@
-# Input and initializing path variables
-#[CmdletBinding()]
-#param (
-#    [Parameter(Mandatory = $true)][string]$repoPath,
-#    [Parameter(Mandatory = $true)][string]$repoName,
-#    [Parameter(Mandatory = $true)][string]$BuildID
-#)
-
-$NCover_URL = "http://ingbtcpic5ms801:11235/"
+$NCover_URL = "http://ing:11235/"
 $NCover_UN = "admin"
-$Ncover_PW = "#welcome123"
+$Ncover_PW = "#w"
 $NcoverProject = "CT_PreferenceDS"
 $BuildNumber = "CT_PreferenceDS_Nightly_20241008.2"
 $SharedPath = "\\ingbtcpic6vwD55\D$"
 $resFile = "D:\OutputNcover\$NcoverProject.xml"
-$test1 = "export --project $NcoverProject"
-$args1 = "--execution=`"$BuildNumber (Consolidated)`" --file=$resFile"
 
 try {
     Write-Host "Connecting to NCover server..."
     ncover connect --server=$NCover_URL --username=$NCover_UN --password=$Ncover_PW
-    
-    if ($?) {
+
+    if ($LASTEXITCODE -eq 0) {
         Write-Host "Connected to NCover server successfully."
     } else {
         Write-Host "Failed to connect to NCover server."
@@ -29,19 +19,24 @@ try {
 
     # Export the report
     Write-Host "Exporting report..."
-    ncover $test1 $args1 --format=v3xml --include-source
-    
-    # Check if the report file exists
+    ncover export --project "$NcoverProject" --execution="$BuildNumber (Consolidated)" --file "$resFile" --format="v3xml" --include-source
+
+    # Check if the report file exists and is not empty
     if (Test-Path -Path $resFile) {
-        Write-Host "Report found, copying to shared path..."
-        $DestinationPath = Join-Path -Path $SharedPath -ChildPath $NcoverProject.xml
-        
-        # Copy the report to the shared path
-        Copy-Item -Path $resFile -Destination $DestinationPath -Force -ErrorAction SilentlyContinue
-        if ($?) {
-            Write-Host "Report successfully copied to shared path."
+        $fileInfo = Get-Item -Path $resFile
+        if ($fileInfo.Length -gt 0) {
+            Write-Host "Report found and is not empty, copying to shared path..."
+            $DestinationPath = Join-Path -Path $SharedPath -ChildPath "$NcoverProject.xml"
+
+            # Copy the report to the shared path
+            Copy-Item -Path $resFile -Destination $DestinationPath -Force -ErrorAction Stop
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Report successfully copied to shared path."
+            } else {
+                Write-Host "Failed to copy report to shared path."
+            }
         } else {
-            Write-Host "Failed to copy report to shared path."
+            Write-Host "Report is empty (0 KB), skipping copy."
         }
     } else {
         Write-Host "Report not found at $resFile."
