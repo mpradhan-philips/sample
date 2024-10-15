@@ -1,0 +1,8 @@
+1) Export nCover report automatically.
+2) Check if report file was successfully exported and continue on error (the pipeline status should have a warning alert).
+3) TICS is triggered post the nCover report copy.
+4) Make arguments dynamic instead of hardcoding
+5) this powershell script will be part of azure pipeline, so we can use secrets to store passwords and azure repo names for project name, file name, execution name 
+Commands 
+ncover connect --server=http://ingpic1:11235/ --username=admin --password=#welcome123
+ncover export --project "CT_RotorControlDS" --execution"CT_RotorControlDS_Nightly_20241008.2 (Consolidated)" --file="D:\Softwares\CT_RotorControlDS.xml" --format=v3xml --include-source
